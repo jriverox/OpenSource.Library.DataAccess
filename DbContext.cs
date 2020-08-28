@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace OpenSource.Library.DataAccess
 {
@@ -228,6 +229,30 @@ namespace OpenSource.Library.DataAccess
       return num;
     }
 
+    public async Task<int> ExecuteNonQueryAsync(DbCommand command, IDbConcurrency entity = null)
+    {
+        int num;
+        try
+        {
+            num = this.transaction != null ? await this.database.ExecuteNonQueryAsync(command, this.transaction) : await this.database.ExecuteNonQueryAsync(command);
+        }
+        catch (DbException ex)
+        {
+            this.WriteLog(command, ex);
+            throw;
+        }
+        if (entity != null)
+        {
+            if (num == 0)
+                throw new DBConcurrencyException();
+            if (this.transaction == null)
+                entity.UpdateVersion();
+            else
+                this.entities.Add(entity);
+        }
+        return num;
+    }
+
     public DataSet ExecuteDataSet(DbCommand command)
     {
       try
@@ -267,6 +292,19 @@ namespace OpenSource.Library.DataAccess
       }
     }
 
+    public async Task<DbDataReader> ExecuteReaderAsync(DbCommand command)
+    {
+        try
+        {
+            return this.transaction == null ? await this.database.ExecuteReaderAsync(command) : await this.database.ExecuteReaderAsync(command, this.transaction);
+        }
+        catch (DbException ex)
+        {
+            this.WriteLog(command, ex);
+            throw;
+        }
+    }
+    
     public object ExecuteScalar(DbCommand command)
     {
       try
@@ -280,6 +318,18 @@ namespace OpenSource.Library.DataAccess
       }
     }
 
+    public async Task<object> ExecuteScalarAsync(DbCommand command)
+    {
+        try
+        {
+            return this.transaction == null ? await this.database.ExecuteScalarAsync(command) : await this.database.ExecuteScalarAsync(command, this.transaction);
+        }
+        catch (DbException ex)
+        {
+            this.WriteLog(command, ex);
+            throw;
+        }
+    }
     private void WriteLog(DbCommand command, DbException exception)
     {
       if (this.logFileName == null)
